@@ -7,42 +7,82 @@ const app = express(); //appObject
 const morgan = require("morgan"); //functionObject //morgan module
 const methodOverride = require("method-override"); //functionObject //method-override module
 
-// ********************************************************************************************
-//External middleware(hook) function expressions and express built in middleware(hook)methods
-// ********************************************************************************************
+// *************************************************************************************************************************************
+//(Third party)middleware(hook) function expressions and (express built-in) middleware(hook)methods - Order matters for next() execution
+// *************************************************************************************************************************************
 
-//app.use(argument) - argument is anycode, anycode is treated as middleware(hook) function
-//Tells expressApp to use the returned functionObject during any/every request
+//(Application-level middleware) - bind middlewareCallback to appObject with app.use() or app.method()
+//app.use(middlewareCallback) - argument is middlewareCallback
+//app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+//middlewareCallback can -
+//1.end request by sending (http structured) response ie res.send()
+//2.move onto next middlewareCallback in stack with next()
+//3.come out of app.use() with next('route') and go to next app.method()
+//4.middlewareCallback gets passed 3 arguments - (req,res,next)
+//5.middlwareCallback for error gets passed 4 arguemnts - (err,req,res,next)
 // app.use(() => {
-//   console.log("Waiting without responding back or moving on"); //option1 -end request by responding option2-move onto next middleware(hook) function
-// }); //app.use(middlewareCallback) executes middlewareCallback when any httpMethod/any httpStructured request arrives
+//   console.log("Waiting without responding back or moving onto next middleware");
+// });
 
-//(External)middlewareFunctionObject() - log (http structured) request info into shell before responding or moving to next middleware
-//middwareFunction(argument)-argument can be custom string ":method :url :status :res[content-length] - :response-time ms"
-//statusCode -304 Not Modified is similar to 200 ok
-app.use(
-  morgan(":method :url :status :res[content-length] - :response-time ms")
-); //app.use(middlwareFunctionExecution = functionObject) execute functionObject when any httpMethod/any httpStructured request arrives
-//functionObject tells it to move onto next middleware or route
+//(Third party)
+//middlewareCreationFunctionObject(argument)-argument can be custom string eg."dev","common",":method :url :status :res[content-length] - :response-time ms"
+//middlewareCreationFunctionObject execution creates middlewareCallback
+//middlewareCallback - logs (http structured) request info into shell before calling next() to go to next middlewareCallback or app.method()
+//sidenote - statusCode -304 Not Modified is similar to 200 ok
+app.use(morgan("dev")); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+//middlewareCallback calls next() inside it to move to next middlewareCallback
 
-//(External)middlewareFunctionObject() - override req.method from eg.POST to value of _method key eg.PUT,PATCH,DELETE before responding or moving to next middleware
-//?queryString - (?key=value) therefore _method is key, we set value to it in html form
-app.use(methodOverride("_method")); //app.use(middlwareFunctionExecution=functionObject) executes functionObject when any httpMethod/any httpStructured request arrives
-//functionObject tells it to move onto next middleware or route
+//(Third party)
+//middlewareCreationFunctionObject(argument) - argument is key to look for
+//middlewareCreationFunctionObject execution creates middlewareCallback
+//middlewareCallback  - sets req.method from eg.POST to value of _method key eg.PUT,PATCH,DELETE before moving to next middlewareCallback
+//sidenote -  ?queryString is (?key=value), therefore _method is key, we set value to it in html form
+app.use(methodOverride("_method")); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+//middlewareCallback calls next() inside it to move to next middlewareCallback
 
-//(express built in method) Accept form data - expressFunctionObject.middlewareMethod() - (http structured) POST request body parsed to req.body before responding or moving to next middleware
-//(http structure) POST request could be from browser form or postman
-app.use(express.urlencoded({ extended: true })); //app.use(middlwareMethodExecution=functionObject) execute functionObject when any httpMethod/any httpStructured request arrives
-//functionObject tells it to move onto next middleware or route
+//(express built-in)
+//expressFunctionObject.middlewareCreationMethod(argument) - argument is object
+//middlewareCreationMethod execution creates middlewareCallback
+//middlewareCallback - Accept form data - (http structured) POST request body parsed to req.body before before moving to next middlewareCallback
+//sidenode - (http structure) POST request could be from browser form or postman
+app.use(express.urlencoded({ extended: true })); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+//middlewareCallback calls next() inside it to move to next middlewareCallback
 
-//(express built in method) Accept json data - expressFunctionObject.middlewareMethod() - (http structured) POST request body parsed to req.body before responding or moving to next middleware
-//(http structure) POST request from postman
-app.use(express.json()); //app.use(middlwareMethodExecution=functionObject) execute functionObject when any httpMethod/any httpStructured request arrives
-//functionObject tells it to move onto next middleware or route
+//(express built-in)
+//expressFunctionObject.middlewareCreationMethod(argument) - argument is object
+//middlewareCreationMethod execution creates middlewareCallback
+//middlewareCallback - Accept json data - (http structured) POST request body parsed to req.body before moving to next middlewareCallback
+//sidenode - (http structure) POST request could be from browser form or postman
+app.use(express.json()); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+//middlewareCallback calls next() inside it to move to next middlewareCallback
 
-//(express built in method) Accept static data - expressFunctionObject.middlewareMethod() - get files before responding or moving to next middleware
-//app.use(express.static("staticFileDirectory")); //app.use(middlwareMethodExecution=functionObject) execute functionObject when any httpMethod/any httpStructured request arrives
-//functionObject tells it to move onto next middleware or route
+//(express built-in)
+//expressFunctionObject.middlewareCreationMethod(argument) - argument is staticFileDirectoryString
+//middlewareCreationMethod execution creates middlewareCallback
+//middlewareCallback - Accept static data - get files from directory before moving to next middlewareCallback
+//app.use(express.static("staticFileDirectory"));
+//middlewareCallback calls next() inside it to move to next middlewareCallback
+
+//(Application-level middleware) - bind middlewareCallback to appObject with app.use() or app.method()
+//User created custom middlewareCallbacks - gets passed in arguments (req,res,nextCallback)
+//app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request
+app.use((req, res, next) => {
+  //Decorating the req object
+  // req.method = "GET"; //chaning property of all req object
+  req.requestTime = Date.now(); //adding new property on all req object
+  console.log(req.method, req.path);
+  next();
+});
+// app.use((req, res, next) => {
+//   console.log("User created middlewareCallback 1");
+//   next(); //passing to next middlewareCallback
+//   console.log("Will run after everything"); //comeback and run this after all middlewareCallbacks are run
+// });
+// app.use((req, res, next) => {
+//   console.log("User created middlewareCallback 2");
+//   return next(); //passing to next middlewareCallback
+//   console.log("Wont run since we returned"); //wont run since we left this middlewareCallback with return keyword
+// });
 
 // *****************************************************************************************
 //RESTful webApi crud operations pattern (route/pattern matching algorithm - order matters)
@@ -51,20 +91,32 @@ app.use(express.json()); //app.use(middlwareMethodExecution=functionObject) exec
 //route1
 //httpMethod=GET,path/resource-/(root) -(direct match/exact path)
 //(READ) name-home,purpose-display home page
-//execute callback when (http structured) request arrives
-//convert (http structured) request to req jsObject + create res jsObject
+//execute handlerMiddlwareCallback if (http structured) GET request arrives at path /
+//arguments passed in to handlerMiddlewareCallback -
+//if not already converted convert (http structured) request to req jsObject
+//if not already created create res jsObject
+//nextCallback
 app.get("/", (req, res) => {
   //res.set("content-type", "text/plain");
-  res.send("Home Page"); //send() - converts and sends res jsObject as (http structure)response //content-type:text/plain});
+  console.log(`Request Date: ${req.requestTime}`); //handlerMiddlewareCallbacks req now contains new property
+  res.send("Home Page");
+  //send() - converts and sends res jsObject as (http structure)response //content-type:text/plain});
+  //thus ending request-response cycle
 });
 
 //route2
 //httpMethod=GET,path/resource-/dogs -(direct match/exact path)
 //(READ) name-index,purpose-display all documents in (dogs)collection from (missing)db
-//execute callback when (http structured) request arrives
-//convert (http structured) request to req jsObject + create res jsObject
-app.get("/dogs", async (req, res) => {
-  res.send("Dogs Page"); //send() - converts and sends res jsObject as (http structure)response //content-type:text/plain
+//execute handlerMiddlwareCallback if (http structured) GET request arrives at path /dogs
+//arguments passed in to handlerMiddlewareCallback -
+//if not already converted convert (http structured) request to req jsObject
+//if not already created create res jsObject
+//nextCallback
+app.get("/dogs", (req, res) => {
+  console.log(`Request Date: ${req.requestTime}`); //handlerMiddlewareCallbacks req now contains new property
+  res.send("Dogs Page");
+  //send() - converts and sends res jsObject as (http structure)response //content-type:text/plain});
+  //thus ending request-response cycle
 });
 
 //address - localhost:3000
