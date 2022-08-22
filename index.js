@@ -29,7 +29,7 @@ const methodOverride = require("method-override"); //functionObject //method-ove
 //middlewareCreationFunctionObject execution creates middlewareCallback
 //middlewareCallback - logs (http structured) request info into shell before calling next() to go to next middlewareCallback or app.method()
 //sidenote - statusCode -304 Not Modified is similar to 200 ok
-app.use(morgan("dev")); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request to any path
+// app.use(morgan("dev")); //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request to any path
 //middlewareCallback calls next() inside it to move to next middlewareCallback
 
 //(Third party)
@@ -76,7 +76,7 @@ app.use((req, res, next) => {
 //app.use(path/resource,middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request to specific path/resource
 app.use("/dogs", (req, res, next) => {
   //Decorating the req object
-  console.log("Dogs");
+  // console.log("Dogs");
   next();
 });
 //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request to any path
@@ -91,6 +91,18 @@ app.use("/dogs", (req, res, next) => {
 //   console.log("Wont run since we returned"); //wont run since we left this middlewareCallback with return keyword
 // });
 
+//selective middlewareCallback use in specific routes ie specific method and specific path
+//fakeVerifyPassword custom middlewareCallback(function expression) stored in variable //middlewareCallbacks(function expressions) - gets passed in arguments (req,res,nextCallback)
+//To set it in specific route ,we can pass it as argument along with routeHandlerMiddlewareCallback
+const fakeVerifyPasswordMiddlewareCallback = (req, res, next) => {
+  //?queryString =?key=value
+  //reqObject.query = {key:value}
+  //key to variable - object destrcuturing
+  const { password } = req.query;
+  //ternary operator -execute next middlewareCallback or send (http strucutred) response and end cycle
+  password === "pass123" ? next() : res.send("Sorry you need password");
+};
+
 // *****************************************************************************************
 //RESTful webApi crud operations pattern (route/pattern matching algorithm - order matters)
 // *****************************************************************************************
@@ -98,7 +110,7 @@ app.use("/dogs", (req, res, next) => {
 //route1
 //httpMethod=GET,path/resource-/(root) -(direct match/exact path)
 //(READ) name-home,purpose-display home page
-//app.method(pathString ,middlewareCallback) lets us execute middlewareCallback on specifid http method/every (http structured) request to specified path/resource
+//app.method(pathString ,handlerMiddlewareCallback) lets us execute handlerMiddlewareCallback on specifid http method/every (http structured) request to specified path/resource
 //execute handlerMiddlwareCallback if (http structured) GET request arrives at path /
 //arguments passed in to handlerMiddlewareCallback -
 //if not already converted convert (http structured) request to req jsObject
@@ -115,7 +127,7 @@ app.get("/", (req, res) => {
 //route2
 //httpMethod=GET,path/resource-/dogs -(direct match/exact path)
 //(READ) name-index,purpose-display all documents in (dogs)collection from (missing)db
-//app.method(pathString ,middlewareCallback) lets us execute middlewareCallback on specifid http method/every (http structured) request to specified path/resource
+//app.method(pathString ,handlerMiddlewareCallback) lets us execute handlerMiddlewareCallback on specifid http method/every (http structured) request to specified path/resource
 //execute handlerMiddlwareCallback if (http structured) GET request arrives at path /dogs
 //arguments passed in to handlerMiddlewareCallback -
 //if not already converted convert (http structured) request to req jsObject
@@ -124,6 +136,23 @@ app.get("/", (req, res) => {
 app.get("/dogs", (req, res) => {
   console.log(`Request Date: ${req.requestTime}`); //handlerMiddlewareCallbacks req now contains new property
   res.send("Dogs Page");
+  //responseObject.sendMethod(argument-bodyDataString) - converts and sends res jsObject as (http structure)response //content-type:text/plain});
+  //thus ending request-response cycle
+});
+
+//route3
+//httpMethod=GET,path/resource-/secret -(direct match/exact path)
+//(READ) name-index,purpose-display all documents in (secrets)collection from (missing)db
+//app.method(pathString ,otherPreMiddlewareCallback,handlerMiddlewareCallback) lets us execute both callbacks on specifid http method/every (http structured) request to specified path/resource
+//execute otherPreMiddlewareCallback - potential next() to - handlerMiddlewareCallback ,if (http structured) GET request arrives at path /secrets
+//arguments passed in to handlerMiddlewareCallback -
+//if not already converted convert (http structured) request to req jsObject
+//if not already created create res jsObject
+//nextCallback
+app.get("/secret", fakeVerifyPasswordMiddlewareCallback, (req, res) => {
+  res.send(
+    "Secret: Sometimes i wear headphones in public so i dont have to talk to anyone"
+  );
   //responseObject.sendMethod(argument-bodyDataString) - converts and sends res jsObject as (http structure)response //content-type:text/plain});
   //thus ending request-response cycle
 });
