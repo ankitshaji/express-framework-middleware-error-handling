@@ -51,9 +51,10 @@ const fakeVerifyPasswordMiddlewareCallback = (req, res, next) => {
     next();
   }
   //explicitly throw an error in middlewareCallback
-  throw new Error("password required");
+  throw new Error("password required"); //errorInstanceObject(errorMessage+stackTrace)
+  //catches errInstanceObject in customErrorHandlerMiddlewareCallback which then passes errInstanceObject to next errorHandlerMiddlewareCallback ie-defaultErrorHandlerMiddlewareCallback
   //express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
-  //responseObject-res.body:errorMessage stack trace of error(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
+  //responseObject-res.body:errInstanceObject(errorMessage+stackTrace)(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
 };
 
 // *****************************************************************************************
@@ -87,8 +88,9 @@ app.get("/secret", fakeVerifyPasswordMiddlewareCallback, (req, res) => {
 app.get("/error", (req, res) => {
   //variable not defined error
   chicken.fly();
+  //catches errInstanceObject in customErrorHandlerMiddlewareCallback which then passes errInstanceObject to next errorHandlerMiddlewareCallback ie-defaultErrorHandlerMiddlewareCallback
   //express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
-  //responseObject-res.body:stack trace of error(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
+  //responseObject-res.body:errInstanceObject(errorMessage+stackTrace)(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
 });
 
 //app.use(middlewareCallback)
@@ -96,6 +98,17 @@ app.get("/error", (req, res) => {
 app.use((req, res) => {
   //responseObject.statusMethod(argument-numCode) returns responseObject with updated statusCode
   res.status(404).send("Not Found");
+});
+
+// ************************************
+//customErrorHandlerMiddlewareCallback
+// ************************************
+
+//app.use(errorHandlerMiddlewareCallback)
+//errorHandlerMiddlewareCallback takes arguments -(errorInstanceObject,resObject,reqObject,nextCallback)
+app.use((err, req, res, next) => {
+  console.log("****ERROR*****");
+  next(err); //pass errorInstanceObject onto next errorHandlerMiddlewareCallback
 });
 
 //address - localhost:3000
