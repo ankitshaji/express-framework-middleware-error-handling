@@ -2,29 +2,44 @@
 
 //RESTful webApi - using REST principles
 const express = require("express"); //functionObject //express module
-const path = require("path"); //pathObject //path module
 const app = express(); //appObject
-const morgan = require("morgan"); //functionObject //morgan module
+const CustomErrorClassObject = require("./CustomError"); //CustomErrorClassObject //self created module/file needs "./"
 
 // *************************************************************************************************************************************
 //(Third party)middleware(hook) function expressions and (express built-in) middleware(hook)methods - Order matters for next() execution
 // *************************************************************************************************************************************
 //(Application-level middleware) - bind middlewareCallback to appObject with app.use() or app.method()
 //app.use(middlewareCallback) //app.use() lets us execute middlewareCallback on any http method/every (http structured) request to any path
-//middlewareCallback gets passed in arguments (req,res,nextCallback)
+//middlewareCallback gets passed in 3 arguments (req,res,nextCallback)
 
-// **********************
-//Express error handling
-// **********************
-//Case 1 - defaultErrorHandlerMiddlewareCallback(invisible)-
-//1.1 -
-//syntax error or variable undefined error in middlewareCallbacks and handlerCallbacks
+// **********************************************************************************************************************
+//Express error handling //errorHandlerMiddlewareCallback takes 4 arguments (errObject,reqObject,resObject,nextCallback)
+// **********************************************************************************************************************
+//case1 - using default ErrorClassObject("message") - creating instance object - > errorClassInstanceObject
+//defaultErrorHandlerMiddlewareCallback(invisible) and customeErrorHandlerMiddlewareCallbacks(user defined)-
+//syntax error/variable undefined error OR explicitly throw an error IN middlewareCallbacks and handlerCallbacks
+//implicitly/explicitly throws an error in middlewareCallback and handlerCallbacks ,(throw new Error("message"))
+//throw new Error("message") implicitly calls next(errorClassInstanceObject) - sending errorClassInstanceObject to next ErrorHandlerMiddlewareCallback
+//if next ErrorHandlerMiddlewareCallback is defaultErrorHandlerMiddlewareCallback(invisible)
 //express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
-//responseObject-res.body:stack trace of error(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
-//1.2 -
-//explicitly throw an error in middlewareCallback and handlerCallbacks ,(throw new Error("errorMessage"))
-//express defaultErrorHandlerMiddlewareCallback auto sends (http strucutred) response to end request-response cycle, content-type:text/html
-//responseObject-res.body:errorMessage+stack trace of error(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
+//responseObject-res.body:errorClassInstanceObject.message + errorClassInstanceObject.stack ie.stack trace of error(dev)/errorClassInstanceObject.message(prod) ,res.statusCode:auto set default 500,res.statusMessage:auto set from status code
+//else if next ErrorHandlerMiddlewareCallback is customeErrorHandlerMiddlewareCallback(user defined)
+//we can send (http structured) response ourselves to end request-response cycle,content-type:what we define,
+//responseObject-res.body:what we define,res.statusCode:what we define,res.statusMessage:what we define
+//or we can call next(errorClassInstanceObject) to pass it to the next ErrorHandlerMiddlewareCallback
+
+//case2 - using CustomErrorClassObject("message",statusCode) inherits from ErrorClassObject() - creating instance object - > customErrorClassInstanceObject
+//defaultErrorHandlerMiddlewareCallback(invisible) and customeErrorHandlerMiddlewareCallbacks(user defined)-
+//Explicitly throw error IN middlewareCallbacks and handlerCallbacks //throw new CustomErrorClassObject("message",statusCode))
+//CustomeErrorClassObject lets us add a status property in customErrorClassInstanceObject
+//throw new CustomErrorClassObject("message",statusCode) implicitly calls next(customErrorClassInstanceObject) - sending customErrorClassInstanceObject to next ErrorHandlerMiddlewareCallback
+//if next ErrorHandlerMiddlewareCallback is defaultErrorHandlerMiddlewareCallback(invisible)
+//express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
+//responseObject-res.body:customErrorClassInstanceObject.message + customErrorClassInstanceObject.stack ie.stack trace of error(dev)/customErrorClassInstanceObject.message(prod) ,res.statusCode:customErrorClassInstanceObject.status, res.statusMessage:auto set from status code
+//else if next ErrorHandlerMiddlewareCallback is customeErrorHandlerMiddlewareCallback(user defined)
+//we can send (http structured) response ourselves to end request-response cycle,content-type:what we define,
+//responseObject-res.body:what we define,res.statusCode:what we define,res.statusMessage:what we define
+//or we can call next(errorClassInstanceObject) to pass it to the next ErrorHandlerMiddlewareCallback
 
 // *************************
 //customMiddlewareCallbacks
@@ -50,11 +65,17 @@ const fakeVerifyPasswordMiddlewareCallback = (req, res, next) => {
   if (password === "pass123") {
     next();
   }
+  // res.status(401); //dont do this - To change statusCode use create a CustomeErrorClassObject
+
   //explicitly throw an error in middlewareCallback
-  throw new Error("password required"); //errorInstanceObject(errorMessage+stackTrace)
-  //catches errInstanceObject in customErrorHandlerMiddlewareCallback which then passes errInstanceObject to next errorHandlerMiddlewareCallback ie-defaultErrorHandlerMiddlewareCallback
-  //express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
-  //responseObject-res.body:errInstanceObject(errorMessage+stackTrace)(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
+  //CustomErrorClassObject("message",statusCode) //sends arguments to constructor method //new keyword creates customErrorClassInstanceObject
+  throw new CustomErrorClassObject("password required", 401);
+  //implicite next(customErrorClassInstanceObject)
+
+  //explicitly throw an error in middlewareCallback
+  //ErrorClassObject("message") //sends arguments to constructor method //new keyword creates ErrorClassInstanceObject
+  throw new Error("password required");
+  //implicite next(errorClassInstanceObject)
 };
 
 // *****************************************************************************************
@@ -86,11 +107,17 @@ app.get("/secret", fakeVerifyPasswordMiddlewareCallback, (req, res) => {
 //route4
 //app.method("pathString,handlerMiddlewareCallback")
 app.get("/error", (req, res) => {
-  //variable not defined error
+  //variable not defined - implicite throw new Error("message")
+  //ErrorClassObject("messages") //sends arguments to constructor method //new keyword creates errorClassInstanceObject
   chicken.fly();
-  //catches errInstanceObject in customErrorHandlerMiddlewareCallback which then passes errInstanceObject to next errorHandlerMiddlewareCallback ie-defaultErrorHandlerMiddlewareCallback
-  //express defaultErrorHandlerMiddlewareCallback auto sends (http structured) response to end request-response cycle, content-type:text/html
-  //responseObject-res.body:errInstanceObject(errorMessage+stackTrace)(dev)/status message(prod) ,res.statusCode: default 500, res.statusMessage: internal server error
+  ///implicite next(errorClassInstanceObject)
+});
+
+app.get("/admin", () => {
+  //explicitly throw an error in middlewareCallback
+  //CustomErrorClassObject("message",statusCode) //sends arguments to constructor method //new keyword creates customErrorClassInstanceObject
+  throw new CustomErrorClassObject("You're not an admin", 403);
+  //implicite next(customErrorClassInstanceObject)
 });
 
 //app.use(middlewareCallback)
@@ -103,13 +130,28 @@ app.use((req, res) => {
 // ************************************
 //customErrorHandlerMiddlewareCallback
 // ************************************
+//app.use(customErrorHandlerMiddlewareCallback)
+//customErrorHandlerMiddlewareCallback takes in 4 arguments -(errorClassInstanceObject/customErrorClassInstanceObject,resObject,reqObject,nextCallback)
 
-//app.use(errorHandlerMiddlewareCallback)
-//errorHandlerMiddlewareCallback takes arguments -(errorInstanceObject,resObject,reqObject,nextCallback)
+//customErrorHandlerMiddlewareCallback(errorClassInstanceObject,resObject,reqObject,nextCallback)
+// app.use((err, req, res, next) => {
+//   console.log("****ERROR*****");
+//   next(err); //pass (errro/customError)ClassInstanceObject onto next (custom/default)errorHandlerMiddlewareCallback
+// });
+
+//customErrorHandlerMiddlewareCallback(errorClassInstanceObject/customErrorClassInstanceObject,resObject,reqObject,nextCallback)
 app.use((err, req, res, next) => {
-  console.log("****ERROR*****");
-  next(err); //pass errorInstanceObject onto next errorHandlerMiddlewareCallback
+  //customeErrorClassInstanceObject has property status, errorClassInstanceObject's status property is undefined
+  //both instances have a message property + other methods and properties such as stack
+  //key to variable + set default values if undefined - object destructuring
+  const { status = 500, message = "Something went wrong" } = err; //errorClassInstanceObject
+  res.statusMessage = "I can edit this instead of being auto set from status";
+  res.status(status).send(message); //convert responseObject and send (http structured) response - ending request-response cycle
+  // next(errorClassInstanceObject); //could pass errorClassInstanceObject to defaultErrorHandlerMiddlewareCallback(invisible)
 });
+//**************************************************
+//INVISIBLE - defaultErrorHandlerMiddlewareCallback
+//**************************************************
 
 //address - localhost:3000
 //appObject.method(port,callback) binds app to port
