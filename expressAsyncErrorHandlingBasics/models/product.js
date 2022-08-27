@@ -17,9 +17,16 @@ const mongoose = require("mongoose"); //mongooseObject //mongoose module
 ///cannot ommit name property,cannot ommit price property, price gets converted to type number, addtional key:values get neglected(no error)
 //price min val 0,setting (atomicValue)customEnumType with pre fixed values category needs to use eg.(booleanEnumType takes true,false)
 //but here enum validator is of type string array with pre fixed values category needs to use,category needs to be lowercase
+//we can set some custom words in messageFromMongoose when implicit throw new Error("messageFromMongoose") occurs -
 const productSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  price: { type: Number, require: true, min: 0 },
+  name: {
+    type: String,
+    required: [
+      true,
+      "some custom words in messageFromMongoose - name cannot be blank",
+    ],
+  },
+  price: { type: Number, required: true, min: 0 },
   category: {
     type: String,
     lowercase: true,

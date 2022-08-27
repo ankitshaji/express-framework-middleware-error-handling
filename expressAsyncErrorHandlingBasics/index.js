@@ -45,119 +45,251 @@ const categories = ["fruit", "vegetable", "dairy"];
 //RESTful webApi crud operations pattern (route/pattern matching algorithm - order matters) + MongoDB CRUD Operations using mongoose-ODM (modelClassObject)
 // *********************************************************************************************************************************************************
 
-//httpMethod=GET,path/resource-/products + can contain ?queryString  -(direct match/exact path)
-//(READ) name-index,purpose-display all documents in (products)collection from (farmStanddb)db
-//async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
-//async function expression without an await is just a normal syncronous function expression
-app.get("/products", async (req, res, next) => {
-  //try/catch
-  try {
+//higher-order functions - accepts a function as argument 0R returns a function
+//***************************************************************************************************************************//
+//higher-order function - async utility function - wrapAsync(async fn) ie.createMiddlewareCallback(async middlewareCallback)
+//***************************************************************************************************************************//
+//named function expression - takes 1 argument - async middlewareCallback
+function wrapAsync(fn) {
+  //returns a new middlewareCallback - expresses passes it 3 argument - req,res,next
+  return function (req, res, next) {
+    //new middlewareCallback executes the old async middlewareCallback - we pass in the 3 arguments express gave us
+    //async middlewareCallback returns a promiseObject-
+    //async - ie continues running outside code if it hits an await inside
+    //async middlewareCallback implicitly returns ie.calls resolve() ,it returns promiseObject(resolved,undefined)
+    //if a value is returned inside async middlewareCallback ie.calls resolve("value"),it returns promiseObject(resolved,value)
+    //if a throw new Error("message") occurs inside async middlewareCallback,ie.calls reject(errorClassInstanceObject), it returns promiseObject(rejected,errorClassInstanceObject)
+    //async function expression without an await is just a normal syncronous function expression
+    //if there was a throw new Error("message") inside async callbackMiddleware we can .catch() the errorClassInstanceObject
+    fn(req, res, next).catch((e) => next(e)); //implicit return next(e)
+  };
+}
+
+//appObject.method(pathString,createMiddlewareCallback(middlewareCallback))
+app.get(
+  "/products",
+  wrapAsync(async (req, res, next) => {
     const { category } = req.query;
     // *****************************************************
     //READ - querying a collection for a document/documents
     // *****************************************************
     if (category) {
-      //if mongooseMethod .find() throws new Error("messageFromMongoose")
-      //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-      //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-      //UnhandledPromiseRejection occurs if not caught
-      const products = await Product.find({ category: category });
+      const products = await Product.find({ category: category }); //implcitly throw new Error("messageFromMongoose")
       res.render("products/index", { products: products, category: category });
     } else {
-      //if mongooseMethod .find() implicitly throws new Error("messageFromMongoose")
-      //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-      //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-      //UnhandledPromiseRejection occurs if not caught
-      const products = await Product.find({});
+      const products = await Product.find({}); //implcitly throw new Error("messageFromMongoose")
       res.render("products/index", { products: products, category: "All" });
     }
-  } catch (e) {
-    //the errorInstanceObject was caught here - e
-    //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    next(e);
-  }
+  })
+);
+
+//appObject.method(pathString,middlewareCallback)
+app.get("/products/new", (req, res) => {
+  res.render("products/new", { categories: categories });
 });
+
+//appObject.method(pathString,createMiddlewareCallback(middlewareCallback))
+app.post(
+  "/products",
+  wrapAsync(async (req, res, next) => {
+    // ***************************************************************************************
+    //CREATE - creating a single new document in the (products) collection of (farmStanddb)db
+    // ***************************************************************************************
+    const newProduct = new Product(req.body);
+    //break validation contraints
+    const savedProduct = await newProduct.save(); //implicitly throws new Error("messageFromMongoose")
+    res.redirect(`/products/${newProduct._id}`);
+  })
+);
+
+//appObject.method(pathString,createMiddlewareCallback(middlewareCallback))
+app.get(
+  "/products/:id",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    // if (!ObjectID.isValid(id)) {
+    //   throw new CustomErrorClassObject("Invalid Id", 400); //explicitly throws new Error("message",status)
+    // }
+    const product = await Product.findById(id); //implicit throw new Error("messageFromMongoose")
+    if (!product) {
+      throw new CustomErrorClassObject("Product Not Found", 404); //explicitly throws new Error("message",status)
+    }
+    res.render("products/show", { product });
+  })
+);
+
+//appObject.method(pathString,createMiddlewareCallback(middlewareCallback))
+app.get(
+  "/products/:id?/edit",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    // if (!ObjectID.isValid(id)) {
+    //   throw new CustomErrorClassObject(
+    //     "Invalid Id passed into mongooseMethod",
+    //     400
+    //   ); //explicitly throws new Error("message",status)
+    // }
+    // ***********************************************************
+    //READ - querying a collection(products) for a document by id
+    // ***********************************************************
+    //invalid ObjectId format/length
+    const foundProduct = await Product.findById(id); //implicitly throws new Error("messageFromMongoose")
+    if (!foundProduct) {
+      throw new CustomErrorClassObject("Product not found", 404); //explicitly throws new Error("message",status)
+    }
+    res.render("products/edit", {
+      product: foundProduct,
+      categories: categories,
+    });
+  })
+);
+
+//appObject.method(pathString,createMiddlewareCallback(middlewareCallback))
+app.put(
+  "/products/:id",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    // **************************************************************************************************************
+    //UPDATE - querying a collection(products) for a document by id then updating it + new key:value pairs neglected
+    // **************************************************************************************************************
+    //invalid ObjectId format/length or break validation constraints
+    const foundProduct = await Product.findByIdAndUpdate(id, req.body, {
+      runValidators: true,
+      new: true,
+    }); //implicitly throws new Error("messageFromMongoose")
+    res.redirect(`/products/${foundProduct._id}`);
+  })
+);
+
+app.delete(
+  "/products/:id",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    // ******************************************************************************
+    //DELETE - querying a collection(products) for a document by id then deleting it
+    // ******************************************************************************
+    //invalid ObjectId format/length or break validation constraints
+    const deletedProduct = await Product.findByIdAndDelete(id); //implicitly throws new Error("messageFromMongoose")
+    res.redirect("/products");
+  })
+);
+
+//*********************************************************************************************************************//
+//Using try/catch and return next(new CustomErrorClassObject("message",status))
+//*********************************************************************************************************************//
+//httpMethod=GET,path/resource-/products + can contain ?queryString  -(direct match/exact path)
+//(READ) name-index,purpose-display all documents in (products)collection from (farmStanddb)db
+//async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
+//async function expression without an await is just a normal syncronous function expression
+// app.get("/products", async (req, res, next) => {
+//   //try/catch
+//   try {
+//     const { category } = req.query;
+//     // *****************************************************
+//     //READ - querying a collection for a document/documents
+//     // *****************************************************
+//     if (category) {
+//       //if mongooseMethod .find() throws new Error("messageFromMongoose")
+//       //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//       //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//       //UnhandledPromiseRejection occurs if not caught
+//       const products = await Product.find({ category: category });
+//       res.render("products/index", { products: products, category: category });
+//     } else {
+//       //if mongooseMethod .find() implicitly throws new Error("messageFromMongoose")
+//       //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//       //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//       //UnhandledPromiseRejection occurs if not caught
+//       const products = await Product.find({});
+//       res.render("products/index", { products: products, category: "All" });
+//     }
+//   } catch (e) {
+//     //the errorInstanceObject was caught here - e
+//     //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     next(e);
+//   }
+// });
 
 //httpMethod=GET,path/resource-/products/new  -(direct match/exact path)
 //(READ) name-new,purpose-display form to submit new document into (products)collection of (farmStanddb)db
-app.get("/products/new", (req, res) => {
-  //explicitly throw an error in middlewareCallback
-  //CustomErrorClassObject("message",statusCode) //sends arguments to constructor method //new keyword creates customErrorClassInstanceObject
-  throw new CustomErrorClassObject("Not Allowed", 401);
-  //implicite next(customErrorClassInstanceObject) passes customErrorClassInstanceObject to next errorHandlerMiddlewareCallback
-  res.render("products/new", { categories: categories });
-});
+// app.get("/products/new", (req, res) => {
+//   //explicitly throw an error in middlewareCallback
+//   //CustomErrorClassObject("message",statusCode) //sends arguments to constructor method //new keyword creates customErrorClassInstanceObject
+//   throw new CustomErrorClassObject("Not Allowed", 401);
+//   //implicite next(customErrorClassInstanceObject) passes customErrorClassInstanceObject to next errorHandlerMiddlewareCallback
+//   res.render("products/new", { categories: categories });
+// });
 
 //httpMethod=POST,path/resource-/products  -(direct match/exact path)
 //(CREATE) name-create,purpose-create new document in (products)collection of (farmStanddb)db
 //http structured request body contains data - middleware parses to req.body
 //async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
 //async function expression without an await is just a normal syncronous function expression
-app.post("/products", async (req, res, next) => {
-  // ***************************************************************************************
-  //CREATE - creating a single new document in the (products) collection of (farmStanddb)db
-  // ***************************************************************************************
-  //try/catch
-  try {
-    const newProduct = new Product(req.body);
-    //break validation contraints
-    //if mongooseMethod .save() implicitly throws new Error("messageFromMongoose")
-    //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-    //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-    //UnhandledPromiseRejection occurs if not caught
-    const savedProduct = await newProduct.save();
-    res.redirect(`/products/${newProduct._id}`);
-  } catch (e) {
-    //the errorInstanceObject was caught here - e
-    //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    next(e);
-  }
-});
+// app.post("/products", async (req, res, next) => {
+//   // ***************************************************************************************
+//   //CREATE - creating a single new document in the (products) collection of (farmStanddb)db
+//   // ***************************************************************************************
+//   //try/catch
+//   try {
+//     const newProduct = new Product(req.body);
+//     //break validation contraints
+//     //if mongooseMethod .save() implicitly throws new Error("messageFromMongoose")
+//     //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//     //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//     //UnhandledPromiseRejection occurs if not caught
+//     const savedProduct = await newProduct.save();
+//     res.redirect(`/products/${newProduct._id}`);
+//   } catch (e) {
+//     //the errorInstanceObject was caught here - e
+//     //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     next(e);
+//   }
+// });
 
 //httpMethod=GET,path/resource-/products/:id  -(pattern match) //:id is a path variable
 //(READ) name-show,purpose-display single specific document in (products)collection of (farmStanddb)db
 //async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
 //async function expression without an await is just a normal syncronous function expression
-app.get("/products/:id", async (req, res, next) => {
-  const { id } = req.params;
-  //if check - true(validIdFormat)
-  if (!ObjectID.isValid(id)) {
-    //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
-    //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
-    return next(
-      new CustomErrorClassObject("Invalid Id passed into mongooseMethod", 400)
-    );
-  }
-  // *************************************************
-  //READ - querying a collection for a document by id
-  // *************************************************
-  const product = await Product.findById(id);
-  //invalid ObjectId format/length to mongooseMethod
-  //if mongooseMethod .findById() implicitly throws new Error("messageFromMongoose")
-  //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-  //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-  //UnhandledPromiseRejection occurs if not caught
-  //note- one fix is to to check id before passing to mongooseMethod
+// app.get("/products/:id", async (req, res, next) => {
+//   const { id } = req.params;
+//   //if check - true(validIdFormat)
+//   if (!ObjectID.isValid(id)) {
+//     //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
+//     //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
+//     return next(
+//       new CustomErrorClassObject("Invalid Id passed into mongooseMethod", 400)
+//     );
+//   }
+// *************************************************
+//READ - querying a collection for a document by id
+// *************************************************
+//   const product = await Product.findById(id);
+//   //invalid ObjectId format/length to mongooseMethod
+//   //if mongooseMethod .findById() implicitly throws new Error("messageFromMongoose")
+//   //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//   //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//   //UnhandledPromiseRejection occurs if not caught
+//   //note- one fix is to to check id before passing to mongooseMethod
 
-  //if mongoseMethod .findId() does not throw new Error("messageFromMongoose")
-  //but product value is null - auto set by mongodb
-  //if check - false(null)
-  if (!product) {
-    //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
-    //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
-    return next(new CustomErrorClassObject("Product not found", 404));
-  }
-  //if we reach this code it throws new Error("ejsErrorMessage")
-  //ejs trying to call a null  valued variables property
-  //UnhandledPromiseRejection occurs if not caught
-  res.render("products/show", { product: product });
-});
+//   //if mongoseMethod .findId() does not throw new Error("messageFromMongoose")
+//   //but product value is null - auto set by mongodb
+//   //if check - false(null)
+//   if (!product) {
+//     //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
+//     //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
+//     return next(new CustomErrorClassObject("Product not found", 404));
+//   }
+//   //if we reach this code it throws new Error("ejsErrorMessage")
+//   //ejs trying to call a null  valued variables property
+//   //UnhandledPromiseRejection occurs if not caught
+//   res.render("products/show", { product: product });
+// });
 
 //alternative - try/catch - don't need to "return" next(new CustomErrorClassOjbect("message",status))
 // app.get("/products/:id", async (req, res, next) => {
@@ -201,43 +333,43 @@ app.get("/products/:id", async (req, res, next) => {
 //(READ) name-edit,purpose-display form to edit existing document in (products)collection of (farmStanddb)db
 //async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
 //async function expression without an await is just a normal syncronous function expression
-app.get("/products/:id?/edit", async (req, res, next) => {
-  const { id } = req.params;
-  if (!ObjectID.isValid(id)) {
-    //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
-    //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
-    return next(
-      new CustomErrorClassObject("Invalid Id passed into mongooseMethod", 400)
-    );
-  }
-  // ***********************************************************
-  //READ - querying a collection(products) for a document by id
-  // ***********************************************************
-  const foundProduct = await Product.findById(id);
-  //invalid ObjectId format/length to mongooseMethod
-  //if mongooseMethod .findById() implicitly throws new Error("messageFromMongoose")
-  //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-  //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-  //UnhandledPromiseRejection occurs if not caught
-  //note- one fix is to to check id before passing to mongooseMethod
+// app.get("/products/:id?/edit", async (req, res, next) => {
+//   const { id } = req.params;
+//   if (!ObjectID.isValid(id)) {
+//     //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
+//     //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
+//     return next(
+//       new CustomErrorClassObject("Invalid Id passed into mongooseMethod", 400)
+//     );
+//   }
+//   // ***********************************************************
+//   //READ - querying a collection(products) for a document by id
+//   // ***********************************************************
+//   const foundProduct = await Product.findById(id);
+//   //invalid ObjectId format/length to mongooseMethod
+//   //if mongooseMethod .findById() implicitly throws new Error("messageFromMongoose")
+//   //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//   //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//   //UnhandledPromiseRejection occurs if not caught
+//   //note- one fix is to to check id before passing to mongooseMethod
 
-  //if mongoseMethod .findId() does not throw new Error("messageFromMongoose")
-  //but foundProduct value is null - auto set by mongodb
-  //if check - false(null)
-  if (!foundProduct) {
-    //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
-    //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-    //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
-    return next(new CustomErrorClassObject("Product not found", 404));
-  }
-  res.render("products/edit", {
-    product: foundProduct,
-    categories: categories,
-  });
-});
+//   //if mongoseMethod .findId() does not throw new Error("messageFromMongoose")
+//   //but foundProduct value is null - auto set by mongodb
+//   //if check - false(null)
+//   if (!foundProduct) {
+//     //create customErrorClassInstanceObject - new CustomeErrroClassObject("message",status)
+//     //explicitly call next(customErrorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//     //we return to escape the handlerMiddlewareCallback and prevent rest of code from executing
+//     return next(new CustomErrorClassObject("Product not found", 404));
+//   }
+//   res.render("products/edit", {
+//     product: foundProduct,
+//     categories: categories,
+//   });
+// });
 
 //alternative - try/catch - don't need to "return" next(new CustomErrorClassOjbect("message",status))
 // app.get("/products/:id?/edit", async (req, res, next) => {
@@ -291,64 +423,79 @@ app.get("/products/:id?/edit", async (req, res, next) => {
 //(http structured) request body contains data - middleware parses to req.body
 //async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
 //async function expression without an await is just a normal syncronous function expression
-app.put("/products/:id", async (req, res, next) => {
-  //try/catch
-  try {
-    const { id } = req.params;
-    // **************************************************************************************************************
-    //UPDATE - querying a collection(products) for a document by id then updating it + new key:value pairs neglected
-    // **************************************************************************************************************
-    //invalid ObjectId format/length or break validation constraints to mongooseMethod
-    //if mongooseMethod .findByIdAndUpdate() implicitly throws new Error("messageFromMongoose")
-    //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-    //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-    //UnhandledPromiseRejection occurs if not caught
-    //note- one fix is to to check id before passing to mongooseMethod
-    const foundProduct = await Product.findByIdAndUpdate(id, req.body, {
-      runValidators: true,
-      new: true,
-    });
-    res.redirect(`/products/${foundProduct._id}`);
-  } catch (e) {
-    next(e);
-    //the errorInstanceObject was caught here - e
-    //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-  }
-});
+// app.put("/products/:id", async (req, res, next) => {
+//   //try/catch
+//   try {
+//     const { id } = req.params;
+//     // **************************************************************************************************************
+//     //UPDATE - querying a collection(products) for a document by id then updating it + new key:value pairs neglected
+//     // **************************************************************************************************************
+//     //invalid ObjectId format/length or break validation constraints to mongooseMethod
+//     //if mongooseMethod .findByIdAndUpdate() implicitly throws new Error("messageFromMongoose")
+//     //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//     //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//     //UnhandledPromiseRejection occurs if not caught
+//     //note- one fix is to to check id before passing to mongooseMethod
+//     const foundProduct = await Product.findByIdAndUpdate(id, req.body, {
+//       runValidators: true,
+//       new: true,
+//     });
+//     res.redirect(`/products/${foundProduct._id}`);
+//   } catch (e) {
+//     next(e);
+//     //the errorInstanceObject was caught here - e
+//     //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//   }
+// });
 
 //httpMethod=DELETE,path/resource-/products/:id  -(pattern match) //:id is a path variable
 //(DELETE) name-destroy,purpose-delete single specific document in (products)collection of (farmStanddb)db
 //async(ie continues running outside code if it hits an await inside) callback implicit returns promiseObject(resolved,undefined) - can await a promiseObject inside
 //async function expression without an await is just a normal syncronous function expression
-app.delete("/products/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    // ******************************************************************************
-    //DELETE - querying a collection(products) for a document by id then deleting it
-    // ******************************************************************************
-    const deletedProduct = await Product.findByIdAndDelete(id);
-    //invalid ObjectId format/length or break validation constraints to mongooseMethod
-    //if mongooseMethod .findByIdAndDelete() implicitly throws new Error("messageFromMongoose")
-    //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
-    //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
-    //UnhandledPromiseRejection occurs if not caught
-    //note- one fix is to to check id before passing to mongooseMethod
+// app.delete("/products/:id", async (req, res, next) => {
+//   try {
+//     const { id } = req.params;
+//     // ******************************************************************************
+//     //DELETE - querying a collection(products) for a document by id then deleting it
+//     // ******************************************************************************
+//     const deletedProduct = await Product.findByIdAndDelete(id);
+//     //invalid ObjectId format/length or break validation constraints to mongooseMethod
+//     //if mongooseMethod .findByIdAndDelete() implicitly throws new Error("messageFromMongoose")
+//     //it creates a new errorInstanceObject + causes promiseObject to be rejectd(errorInstanceObject)
+//     //this errorInstance is caught in the closes catch , this could be try/catch or .catch(()=>{})
+//     //UnhandledPromiseRejection occurs if not caught
+//     //note- one fix is to to check id before passing to mongooseMethod
 
-    res.redirect("/products");
-  } catch (e) {
-    next(e);
-    //the errorInstanceObject was caught here - e
-    //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
-    //we must pass have nextCallback as parameter
-  }
-});
+//     res.redirect("/products");
+//   } catch (e) {
+//     next(e);
+//     //the errorInstanceObject was caught here - e
+//     //then we explicitly call next(errorClassInstanceObject) to pass it to next errorHandlerMiddleareCallback
+//     //we must pass have nextCallback as parameter
+//   }
+// });
+
+const handleValidationError = (err) => {
+  //console.log(err);
+  return new CustomErrorClassObject(
+    `Custom words from customErrorClassInstanceObject, messageFromMongoose - ${err.message}`,
+    400
+  ); //400-bad request
+};
 
 // ************************************
 //customErrorHandlerMiddlewareCallback
 // ************************************
 //app.use(customErrorHandlerMiddlewareCallback)
 //customErrorHandlerMiddlewareCallback takes in 4 arguments -(errorClassInstanceObject/customErrorClassInstanceObject,resObject,reqObject,nextCallback)
+app.use((err, req, res, next) => {
+  //log err.name - mongoose can implcitly throw diffrent types of Error("messageFromMongoose")
+  console.log(err.name); //Error,ValidationError,CastError
+  if (err.name === "ValidationError") err = handleValidationError(err); //err is now customErroClassInstanceObject
+  next(err); //pass errorClaassInstanceObject to next customErrorHandlerMiddlewareCallback
+});
+
 app.use((err, req, res, next) => {
   //customeErrorClassInstanceObject has property status, errorClassInstanceObject's status property is undefined
   //both instances have a message property + other methods and properties such as stack
